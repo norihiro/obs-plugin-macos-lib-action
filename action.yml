@@ -1,0 +1,65 @@
+name: 'Universal dylib generator'
+description: 'Download and install from homebrew and combine into a universal dylib'
+
+inputs:
+  packages:
+    description: 'Packages to be processed. Multiple packages can be specified by separating with a space.'
+    required: true
+    type: string
+    output_directory:
+      description: 'Directory to output the generated dylib. If not specified, overwrite the dylib under /usr/local.'
+      required: false
+      type: string
+  verbose:
+    description: 'Enable printing command lines.'
+    required: false
+    default: false
+    type: boolean
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Download customized brew
+      shell: bash
+      run: |
+        cd "${{github.action_path}}"
+        git clone https://github.com/norihiro/brew.git
+        cd brew
+        git switch macos-force-arm64
+        git clone \
+          --origin=origin --template= --depth=1 \
+          https://github.com/Homebrew/homebrew-core \
+          ./Library/Taps/homebrew/homebrew-core
+        ./bin/brew install pkg-config
+
+    - name: Install packages for arm64
+      shell: bash
+      run: |
+        packages=(${{inputs.packages}})
+        cd "${{github.action_path}}/brew"
+        ./bin/brew install --force-bottle "${packages[@]}"
+
+    - name: Install packages for x86_64
+      shell: bash
+      run: |
+        packages=(${{inputs.packages}})
+        brew install --force-bottle "${packages[@]}"
+
+    - name: Lipo
+      shell: bash
+      env:
+        output_directory: ${{inputs.output_directory}}
+      run: |
+        cd "${{github.action_path}}/brew/lib"
+
+        odir=${output_directory:-$(mktemp -d)}
+
+        find . -name '*.a' -o -name '*.dylib' |
+        while read lib ; do
+          o=${odir}/$lib
+          mkdir -p $(dirname $o)
+          lipo -create -output $o $lib /usr/local/lib/$lib < /dev/null || true
+          if test -z "$output_directory"; then
+            mv -f $o /usr/local/lib/$lib
+          fi
+        done
