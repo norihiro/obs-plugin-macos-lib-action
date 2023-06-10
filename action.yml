@@ -6,6 +6,10 @@ inputs:
     description: 'Packages to be processed. Multiple packages can be specified by separating with a space.'
     required: true
     type: string
+  arm64_prefix_directory:
+    description: 'Directory to expand arm64 packages.'
+    required: false
+    type: string
   output_directory:
     description: 'Directory to output the generated dylib. If not specified, overwrite the dylib under /usr/local.'
     required: false
@@ -20,11 +24,21 @@ runs:
   using: 'composite'
   steps:
     - name: Download customized brew
+      id: step0
       shell: bash
+      env:
+        arm64_prefix_directory: ${{inputs.arm64_prefix_directory}}
       run: |
-        cd "${{github.action_path}}"
-        git clone https://github.com/norihiro/brew.git
-        cd brew
+        if test -n "$arm64_prefix_directory"; then
+          mkdir -p "$arm64_prefix_directory"
+          cd "$arm64_prefix_directory"
+        else
+          mkdir "${{github.action_path}}/brew"
+          cd "${{github.action_path}}/brew"
+        fi
+        echo "arm64_prefix_directory=$PWD" >> $GITHUB_OUTPUT
+
+        git clone https://github.com/norihiro/brew.git .
         git switch macos-force-arm64
         git clone \
           --origin=origin --template= --depth=1 \
@@ -34,9 +48,9 @@ runs:
 
     - name: Install packages for arm64
       shell: bash
+      working-directory: ${{steps.step0.outputs.arm64_prefix_directory}}
       run: |
         packages=(${{inputs.packages}})
-        cd "${{github.action_path}}/brew"
         ./bin/brew install --force-bottle "${packages[@]}"
 
     - name: Install packages for x86_64
@@ -47,10 +61,11 @@ runs:
 
     - name: Lipo
       shell: bash
+      working-directory: ${{steps.step0.outputs.arm64_prefix_directory}}
       env:
         output_directory: ${{inputs.output_directory}}
       run: |
-        cd "${{github.action_path}}/brew/lib"
+        cd ./lib
 
         odir=${output_directory:-$(mktemp -d)}
 
