@@ -14,6 +14,11 @@ inputs:
     description: 'Directory to output the generated dylib. If not specified, overwrite the dylib under /usr/local.'
     required: false
     type: string
+  cache:
+    description: 'Enable cache.'
+    required: false
+    default: true
+    type: boolean
   verbose:
     description: 'Enable printing command lines.'
     required: false
@@ -46,12 +51,33 @@ runs:
           ./Library/Taps/homebrew/homebrew-core
         ./bin/brew install pkg-config
 
+        packages=(${{inputs.packages}})
+        packages_hash=$(echo "${packages[@]}" | sha1sum - | cut -f1 -d\ )
+        echo "packages_hash=$packages_hash" >> $GITHUB_OUTPUT
+
+    - name: Restore brew cache
+      id: brew-cache
+      if: ${{inputs.cache}}
+      uses: actions/cache/restore@v3
+      with:
+        path: ${{github.action_path}}/cache
+        key: brew-arm64-cache-${{steps.step0.outputs.packages_hash}}
+        restore-keys: brew-arm64-cache-
+
     - name: Install packages for arm64
       shell: bash
       working-directory: ${{steps.step0.outputs.arm64_prefix_directory}}
       run: |
         packages=(${{inputs.packages}})
+        export HOMEBREW_CACHE="${{github.action_path}}/cache"
         ./bin/brew install --force-bottle "${packages[@]}"
+
+    - name: Save brew cache
+      if: ${{ inputs.cache && steps.brew-cache.outputs.cache-hit != 'true' }}
+      uses: actions/cache/save@v3
+      with:
+        path: ${{github.action_path}}/cache
+        key: brew-arm64-cache-${{steps.step0.outputs.packages_hash}}
 
     - name: Install packages for x86_64
       shell: bash
