@@ -6,10 +6,10 @@ inputs:
     description: 'Packages to be processed. Multiple packages can be specified by separating with a space.'
     required: true
     type: string
-    output_directory:
-      description: 'Directory to output the generated dylib. If not specified, overwrite the dylib under /usr/local.'
-      required: false
-      type: string
+  output_directory:
+    description: 'Directory to output the generated dylib. If not specified, overwrite the dylib under /usr/local.'
+    required: false
+    type: string
   verbose:
     description: 'Enable printing command lines.'
     required: false
