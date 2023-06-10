@@ -71,10 +71,14 @@ runs:
 
         find . -name '*.a' -o -name '*.dylib' |
         while read lib ; do
-          o=${odir}/$lib
-          mkdir -p $(dirname $o)
-          lipo -create -output $o $lib /usr/local/lib/$lib < /dev/null || true
-          if test -z "$output_directory"; then
-            mv -f $o /usr/local/lib/$lib
+          o="${odir}/$lib"
+          mkdir -p "$(dirname "$o")"
+          if test -f "$lib" -a -f "/usr/local/lib/$lib"; then
+            lipo -create -output "$o" "$lib" "/usr/local/lib/$lib" < /dev/null || true
+            if test -z "$output_directory"; then
+              mv -f "$o" /usr/local/lib/$lib
+            fi
+          else
+            echo "Warning: Skipping $lib"
           fi
         done
